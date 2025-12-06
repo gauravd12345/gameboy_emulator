@@ -1,3 +1,3 @@
 default:
-	g++ main.cpp -o main
+	g++ main.cpp cpu.cpp -o main
 	./main
