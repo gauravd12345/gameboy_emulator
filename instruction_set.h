@@ -5,15 +5,11 @@
 
 #include <cstdint>
 
-class Instruction{
-    public:
-        Instruction(uint8_t opcode);
-
+struct Instruction{
+    uint8_t opcode;
+    Instruction();
 };
 
-Instruction::Instruction(uint8_t opcode){
-    
 
-}
 
 #endif

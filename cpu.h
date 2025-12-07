@@ -17,6 +17,12 @@ class CPU{
         void load_bootROM();
 
         u_int8_t fetch();
+        uint8_t read8();
+        uint16_t read16();
+
+        void execute(uint8_t opcode);
+        void prefixedExecute(uint8_t opcode);
+        void regFlagCheck();
 } ;
 
 

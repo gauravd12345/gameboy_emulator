@@ -44,6 +44,12 @@ struct Register{
     uint16_t sp; // stack pointer
     uint16_t pc; // program counter
 
+    // flags
+    bool zf = 0;
+    bool nf = 0;
+    bool hf = 0;
+    bool cf = 0;
+
 };
 
 
