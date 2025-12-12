@@ -20,7 +20,7 @@ class CPU{
         uint8_t read8();
         uint16_t read16();
 
-        void execute(uint8_t opcode);
+        bool execute(uint8_t opcode);
         void prefixedExecute(uint8_t opcode);
         void regFlagCheck();
 } ;

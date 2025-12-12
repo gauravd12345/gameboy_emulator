@@ -1,6 +1,24 @@
 #include "cpu.h"
+#include "helper.h"
 
-#define OFF 0xFF00
+#define PORT_MODE 0xFF00
+#define STACK 0xFF80
+#define INTERRUPT_ENABLE_REGISTER 0xFFFF
+
+void print8bit(int num){
+    for(int i = 7; i >= 0; i--){
+        if((num & (1 << i))){
+            std::cout << 1;
+        }
+        else{
+            std::cout << 0;
+        }
+
+    }
+    std::cout << std::endl;
+}
+
+
 
 CPU::CPU(){
     this->reg.pc = 0x0000; // Set program counter to 0x0000
@@ -58,7 +76,6 @@ void CPU::load_bootROM(){
 uint8_t CPU::fetch(){
     uint16_t pc_address = this->reg.pc; 
     this->reg.pc += 1; // Increments the program counter
-
     return this->mem[pc_address];
 }
 
@@ -77,19 +94,14 @@ uint16_t CPU::read16(){
 }
 
 
-void CPU::execute(uint8_t opcode){
+bool CPU::execute(uint8_t opcode){
     switch (opcode){
-        case 0xc:{
-            reg.c += 1;
-            break;
-                
-        }
-
-        case 0xe:{
-            uint8_t n8 = read8();
-            reg.c = n8;
-            break;
-                
+        case 0xc:{ reg.c += 1; break; }
+        case 0xe:{ uint8_t n8 = read8(); reg.c = n8; break; }
+        case 0x11:{ uint16_t n16 = read16(); reg.de = n16; break; }
+        case 0x1a:{ 
+            reg.a = mem[reg.de]; 
+            break; 
         }
 
         case 0x20:{
@@ -131,6 +143,12 @@ void CPU::execute(uint8_t opcode){
                 
         }
 
+        case 0x47: {
+            reg.b = reg.a;
+            break;
+
+        }
+
         case 0x7c:{
             reg.a = reg.h;
             break;
@@ -155,22 +173,29 @@ void CPU::execute(uint8_t opcode){
 
         }
 
-        case 0xe2: {
-            mem[OFF + reg.c] = reg.a;
+        case 0xe0: {
+            uint8_t address = read8();
+            mem[PORT_MODE + address] = reg.a;
             break;
 
         }
 
+        case 0xe2: {
+            mem[PORT_MODE + reg.c] = reg.a;
+            break;
 
-        default: {
+        }
+
+        default:{
             std::cout << "Opcode 0x" << std::hex << (int)opcode << " is not recognized" << std::endl;
             std::cout << "PC: 0x" << std::setfill('0') << std::setw(4) << std::hex << (int)reg.pc << std::endl;
-            break;
+            return false;
         }
-
     }
 
     regFlagCheck();
+    return true;
+    
 }
 
 void CPU::prefixedExecute(uint8_t opcode){
@@ -202,3 +227,5 @@ void CPU::regFlagCheck(){
     // bool cf = f & (1 << 4);
     
 }
+
+
