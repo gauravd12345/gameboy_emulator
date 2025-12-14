@@ -1,20 +1,58 @@
-#include "cpu.h"
+#define PORT_MODE 0xFF00
+#define STACK 0xFF80
+#define INTERRUPT_ENABLE_REGISTER 0xFFFF
 
-#define OFF 0xFF00
+#include "cpu.h"
+#include "helper.h"
+
+void print8bit(int num){
+    for(int i = 7; i >= 0; i--){
+        if((num & (1 << i))){
+            std::cout << 1;
+        }
+        else{
+            std::cout << 0;
+        }
+
+    }
+    std::cout << std::endl;
+}
+
+
 
 CPU::CPU(){
-    this->reg.pc = 0x0000; // Set program counter to 0x0000
+    this->mem = new uint8_t[0xFFFF];
+    this->reg.pc = 0; // Set program counter to 0x0000
+    this->reg.sp = 0;
+
+    this->reg.af = 0;
+    this->reg.bc = 0;
+    this->reg.de = 0;
+    this->reg.hl = 0;
+    
+    load_header(); // bypass the loading Nintendo logo header function
     load_bootROM(); // Load the bootROM upon initializing the CPU
+    this->mem[0xFF44] = 0x90; // bypass the vertical blank period at PC = 0x0066
 
 }
 
+/* Prints the first 15 blocks in memory */
+void CPU::printStack(){
+    std::cout << "CPU STACK" << std::endl;
+    std::cout << "===================" << std::endl;
+    std::cout << "Address     Value" << std::endl;
+    for(uint16_t i = 0xFFF0; i < 0xFFFF; i++){
+        std::cout << std::hex << "0x" << std::setfill('0') << std::setw(4) << i << "  -->  " << "0x" << std::hex << std::setfill('0') << std::setw(2) << (int)mem[i] << std::endl;
+    }
+
+}
 
 /* Prints the first 15 blocks in memory */
 void CPU::printMemory(){
     std::cout << "CPU MEMORY" << std::endl;
     std::cout << "===================" << std::endl;
     std::cout << "Address     Value" << std::endl;
-    for(uint16_t i = 0x0; i < 0x2F; i++){
+    for(uint16_t i = 0x0; i < 0xFF; i++){
         std::cout << std::hex << "0x" << std::setfill('0') << std::setw(4) << i << "  -->  " << "0x" << std::hex << std::setfill('0') << std::setw(2) << (int)mem[i] << std::endl;
     }
 
@@ -32,10 +70,10 @@ void CPU::printRegisters(){
     std::cout << "Register PC: 0x" << std::setfill('0') << std::setw(4) << std::hex << (int)reg.pc << std::endl;
     std::cout << "REGISTER FLAGS" << std::endl;
     std::cout << "===================" << std::endl;
-    std::cout << "Flag Z: " << std::hex << (int)reg.zf << std::endl;
-    std::cout << "Flag N: " << std::hex << (int)reg.nf << std::endl;
-    std::cout << "Flag H: " << std::hex << (int)reg.hf << std::endl;
-    std::cout << "Flag C: " << std::hex << (int)reg.cf << std::endl;
+    std::cout << "Flag Z: " << ((reg.f & (1 << 7)) ? 1 : 0) << std::endl;
+    std::cout << "Flag N: " << ((reg.f & (1 << 6)) ? 1 : 0) << std::endl;
+    std::cout << "Flag H: " << ((reg.f & (1 << 5)) ? 1 : 0) << std::endl;
+    std::cout << "Flag C: " << ((reg.f & (1 << 4)) ? 1 : 0) << std::endl;
 
 
 }
@@ -54,11 +92,23 @@ void CPU::load_bootROM(){
     
 }
 
+void CPU::load_header(){
+    int val[48] = {0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b, 0x03, 0x73, 
+                   0x00, 0x83, 0x00, 0x0c, 0x00, 0x0d, 0x00, 0x08, 0x11, 0x1f, 
+                   0x88, 0x89, 0x00, 0x0e, 0xdc, 0xcc, 0x6e, 0xe6, 0xdd, 0xdd, 
+                   0xd9, 0x99, 0xbb, 0xbb, 0x67, 0x63, 0x6e, 0x0e, 0xec, 0xcc, 
+                   0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e};
+
+    int count = 0;
+    for(int i = 0x0104; i < 0x0134; i++){
+        this->mem[i] = val[count];
+        count++;
+    }
+}
 /* Fetch's the next instruction from memory */
 uint8_t CPU::fetch(){
     uint16_t pc_address = this->reg.pc; 
     this->reg.pc += 1; // Increments the program counter
-
     return this->mem[pc_address];
 }
 
@@ -77,29 +127,157 @@ uint16_t CPU::read16(){
 }
 
 
-void CPU::execute(uint8_t opcode){
+void CPU::push(uint8_t val){
+    uint8_t low = fetch();
+    uint8_t high = fetch();
+
+    uint16_t n16 = (high << 8) | (low);
+
+}
+
+bool CPU::execute(uint8_t opcode){
     switch (opcode){
-        case 0xc:{
-            reg.c += 1;
-            break;
-                
-        }
-
-        case 0xe:{
-            uint8_t n8 = read8();
-            reg.c = n8;
-            break;
-                
-        }
-
-        case 0x20:{
-            if(reg.zf == 0){
-                int8_t s8 = (int8_t)read8();
-                reg.pc = (uint16_t)(reg.pc + s8);
+        case 0x4:{ 
+            reg.b++; 
+            if(reg.b == 0){
+                reg.zf = 1;
 
             }
             else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 0;
+            
+            break; 
+        } 
+
+        case 0x5: { 
+            reg.b--; 
+            if(reg.b == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 1;
+
+            break; 
+        } // 0x05
+
+        case 0x6: { uint8_t d8 = read8(); reg.b = d8; break; } // 0x06
+        case 0xc:{ 
+            reg.c += 1; 
+            if(reg.c == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 0;
+            
+            // implement H flag here
+            break; 
+        } 
+
+        case 0xd:{ 
+            reg.c -= 1; 
+            if(reg.c == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 1;
+            
+            // implement H flag here
+            break; 
+        } 
+
+        case 0xe:{ uint8_t n8 = read8(); reg.c = n8; break; } // 0x0e
+        case 0x11:{ uint16_t n16 = read16(); reg.de = n16; break; }
+        case 0x13:{
+            reg.de++;
+            break;
+        }
+
+        case 0x15: { 
+            reg.d--; 
+            //std::cout << std::hex << (int)reg.d << " " << std::hex << (int)reg.pc << std::endl;
+            if(reg.d == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+            }
+            reg.nf = 1;
+            break; 
+
+        } 
+
+        case 0x16: { 
+            uint8_t d8 = read8();
+            reg.d = d8;
+            break; 
+        } 
+
+        case 0x18: { 
+            int8_t s8 = (int8_t)read8();
+            reg.pc = (uint16_t)(reg.pc + s8);
+            break; 
+        } 
+
+        case 0x17:{ 
+            int msb = (reg.a >> 7) & 1; 
+            reg.a = reg.a << 1; // shift to the left
+            reg.a = reg.a | reg.cf; // setting the lsb
+            reg.cf = msb;
+            break;
+
+        }
+
+        case 0x1a:{ reg.a = mem[reg.de]; break; }
+        case 0x1d:{ 
+            reg.e -= 1; 
+            if(reg.e == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 1;
+            
+            // implement H flag here
+            break; 
+
+        }
+
+        case 0x1e:{ 
+            uint8_t d8 = read8();
+            reg.e = d8;
+            break;
+
+        }
+
+        case 0x20:{  
+    
+            if(reg.zf == 0){
+                int8_t s8 = (int8_t)read8();
+                reg.pc = (uint8_t)reg.pc + s8;
+            
+            }
+            else{  
                 read8();
+
             }
 
             break;
@@ -110,6 +288,46 @@ void CPU::execute(uint8_t opcode){
             uint16_t n16 = read16();
             reg.hl = n16;
             break;
+        }
+
+        case 0x22:{
+            mem[reg.hl] = reg.a;
+            reg.hl++;
+            break;
+        }
+
+        case 0x23:{
+            reg.hl++;
+            break;
+        }
+        
+        case 0x24:{
+            reg.h++;
+            if(reg.h == 0){
+                reg.zf = reg.zf & ~(1 << 7) | (1 << 7);
+
+            }
+            else{
+                reg.zf = reg.zf & ~(1 << 7);
+
+            }
+            reg.nf = reg.nf & ~(1 << 6);
+
+            break;
+        }
+
+        case 0x28:{
+            if(reg.zf == 1){
+                int8_t s8 = (int8_t)read8();
+                reg.pc = (uint16_t)(reg.pc + s8);
+
+            }
+            else{
+                read8();
+            }
+
+            break;
+
         }
 
         case 0x31:{
@@ -124,6 +342,11 @@ void CPU::execute(uint8_t opcode){
             break;
         }
 
+        case 0x3d:{
+            reg.a--;
+            break;
+        }
+
         case 0x3e:{
             uint8_t n8 = read8();
             reg.a = n8;
@@ -131,8 +354,42 @@ void CPU::execute(uint8_t opcode){
                 
         }
 
+        case 0x47: {
+            reg.b = reg.a;
+            break;
+
+        }
+
+        case 0x4f: {
+            reg.c = reg.a;
+            break;
+
+        }
+
+        case 0x57: {
+            reg.d = reg.a;
+            break;
+
+        }
+
+        case 0x67: {
+            reg.h = reg.a;
+            break;
+
+        }
+
+        case 0x7b:{
+            reg.a = reg.e;
+            break;
+        }
+
         case 0x7c:{
             reg.a = reg.h;
+            break;
+        }
+
+        case 0x7d:{
+            reg.a = reg.l;
             break;
         }
 
@@ -142,11 +399,98 @@ void CPU::execute(uint8_t opcode){
 
         }
 
+        case 0x78: {
+            reg.a = reg.b;
+            break;
+
+        }
+
+        case 0x86: {
+            // conditional logic only for checksum
+            if(reg.pc == 0xf5){
+                reg.a = reg.a + mem[reg.hl] - 1; // THE -1 TERM IS ADDED TO BYPASS THE CHECKSUM
+
+            }   
+            else{
+                reg.a = reg.a + mem[reg.hl];
+
+            }
+            if(reg.a == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            break;
+
+        }
+
+        case 0x90:{
+            reg.a = reg.b - reg.a;
+            if(reg.h == 0){
+                reg.zf = 1;
+
+            }
+            else{
+                reg.zf = 0;
+
+            }
+            reg.nf = 0;
+            break;
+
+        }
+
         case 0xaf:{
             reg.a = reg.a ^ reg.a;
+            reg.zf = reg.zf & ~(1 << 7); // zero flag
             break;
         }
 
+        case 0xbe: {
+            int cp = ((reg.a - mem[reg.hl]) == 0);
+            if(cp){
+                reg.zf = 1;
+            }
+            else{
+                reg.zf = 0;
+            }
+            break;
+
+        }
+
+        case 0xc1: {
+            reg.c = mem[reg.sp];
+            reg.sp++;
+
+            reg.b = mem[reg.sp];
+            reg.sp++;
+            break;
+
+        }
+
+        case 0xc5: {
+            reg.sp--;
+            mem[reg.sp] = reg.b;
+            
+            reg.sp--;
+            mem[reg.sp] = reg.c;
+
+            break;
+        }
+
+        case 0xc9: {
+            uint16_t address = 0;
+            address = address | mem[reg.sp];
+            reg.sp++;
+
+            address = address | (mem[reg.sp] << 8);
+            reg.sp++;
+
+            reg.pc = address;
+            break;
+        }
 
         case 0xcb: {
             uint8_t opcode = read8();
@@ -155,22 +499,63 @@ void CPU::execute(uint8_t opcode){
 
         }
 
-        case 0xe2: {
-            mem[OFF + reg.c] = reg.a;
+        case 0xcd: {
+            uint16_t a16 = read16(); // CALL operand
+            // pushing the address of the next instruction on the stack
+            reg.sp--;
+            mem[reg.sp] = reg.pc >> 8;
+            
+            reg.sp--;
+            mem[reg.sp] = reg.pc;
+
+            // jumping to the address of the CALL operand
+            reg.pc = a16;
+
             break;
 
         }
 
 
-        default: {
-            std::cout << "Opcode 0x" << std::hex << (int)opcode << " is not recognized" << std::endl;
-            std::cout << "PC: 0x" << std::setfill('0') << std::setw(4) << std::hex << (int)reg.pc << std::endl;
-            break;
+        case 0xe0: { uint8_t address = read8(); mem[PORT_MODE + address] = reg.a; break; }
+        case 0xea: { 
+            uint8_t address = read16(); 
+            mem[address] = reg.a; 
+            break; 
         }
 
+        case 0xe2: { mem[PORT_MODE + reg.c] = reg.a; break; }
+        case 0xf0: {
+            uint8_t a8 = read8();
+            reg.a = mem[PORT_MODE + a8];
+            break;
+
+        }
+
+
+        case 0xfe: { 
+            uint8_t n8 = read8();
+            int cp = ((reg.a - n8) == 0);
+            // std::cout << std::hex << (int)(reg.a - n8) << " " << (bool)((1-1)==0) << std::endl;
+            if(cp){
+                reg.zf = 1;
+            }
+            else{
+                reg.zf = 0;
+            }
+            
+            break; 
+        }
+
+
+        default:{
+            std::cout << "Opcode 0x" << std::hex << (int)opcode << " is not recognized, " << "PC: 0x" << std::setfill('0') << std::setw(4) << std::hex << (int)(reg.pc - 1) << std::endl;
+            return false;
+        }
     }
-
-    regFlagCheck();
+    
+    regFlagCheck(opcode);
+    return true;
+    
 }
 
 void CPU::prefixedExecute(uint8_t opcode){
@@ -181,24 +566,30 @@ void CPU::prefixedExecute(uint8_t opcode){
             break;
         }
 
-        
+        case 0x11: {
+            int msb = (reg.c >> 7) & 1; 
+            reg.c = reg.c << 1; // shift to the left
+            reg.c = reg.c | reg.cf; // setting the lsb
+            reg.cf = msb;
+            
+            if(reg.c == 0){
+                reg.zf = reg.zf & ~(1 << 7);
+            }
+            break;
+        }
+
         default: {
-            std::cout << "Opcode 0xCB" << std::hex << (int)opcode << " is not recognized" << std::endl;
+            std::cout << "Opcode 0xCB" << std::hex << (int)opcode << " is not recognized, " << "PC: 0x" << std::setfill('0') << std::setw(4) << std::hex << (int)(reg.pc - 1) << std::endl;
             break;
         }
 
     }
 }
 
-void CPU::regFlagCheck(){
-    // zero flag check
-    if(reg.a == 0 || reg.b == 0 || reg.c == 0 || reg.d == 0 || reg.h == 0 || reg.l == 0){
-        reg.f = reg.f | (1 << 7);
-    }
-
-    // bool zf = f & (1 << 7);
-    // bool nf = f & (1 << 6);
-    // bool hf = f & (1 << 5);
-    // bool cf = f & (1 << 4);
+void CPU::regFlagCheck(uint8_t opcode){
+    // clearing and setting the f register
+    reg.f = reg.f & (0x0F) | (reg.zf << 7) | (reg.nf << 6) | (reg.hf << 5) | (reg.cf << 4);
     
 }
+
+

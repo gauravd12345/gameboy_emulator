@@ -5,24 +5,29 @@
 #include <fstream>
 #include "register.h"
 
+
 class CPU{
     public:
         Register reg;
-        u_int8_t* mem = new uint8_t[0xFFFF]; // 64KB x 8bit total memory; 8-byte adresss x 1-byte data
+        u_int8_t* mem; // 64KB x 8bit total memory; 8-byte adresss x 1-byte data
         
         CPU(); // Constructor
 
+        void printStack();
         void printMemory();
         void printRegisters();
         void load_bootROM();
+        void load_header();
 
-        u_int8_t fetch();
+        uint8_t fetch();
         uint8_t read8();
         uint16_t read16();
 
-        void execute(uint8_t opcode);
+        void push(uint8_t val);
+
+        bool execute(uint8_t opcode);
         void prefixedExecute(uint8_t opcode);
-        void regFlagCheck();
+        void regFlagCheck(uint8_t opcode);
 } ;
 
 
